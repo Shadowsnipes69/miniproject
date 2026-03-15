@@ -1,0 +1,210 @@
+<?php
+?>
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Zoeken</title>
+    <link rel="stylesheet" href="djc.css">
+</head>
+<body>
+    <header style="background-color: #186cc1; padding: 20px; display: flex; align-items: center; justify-content: space-between; color: white;">
+        <div>
+            <button onclick="window.location.href='index.php'" style="background-color: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Terug naar Home</button>
+            <button onclick="window.location.href='adddnew.php'" style="background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 50%; cursor: pointer; font-size: 18px; font-weight: bold;">+</button>
+        </div>
+        <div class="search-container" style="flex: 1; max-width: 600px; margin: 0 20px; position: relative;">
+            <div class="search-icon" style="position: absolute; left: 25px; top: 50%; transform: translateY(-50%); color: #667eea; font-size: 24px;">🔍</div>
+            <form method="GET" style="display: flex;">
+                <input 
+                    type="text" 
+                    name="q" 
+                    class="search-input" 
+                    placeholder="Zoek op voornaam, achternaam, geslacht, studierichting, email, telefoon, woonplaats, land of gemiddelde cijfer..."
+                    value="<?php echo htmlspecialchars($_GET['q'] ?? ''); ?>"
+                    autocomplete="off"
+                    style="width: 100%; padding: 18px 20px 18px 60px; font-size: 18px; border: 3px solid #e1e5e9; border-radius: 30px; outline: none; transition: all 0.3s ease; font-family: inherit; flex: 1; margin-right: 10px;"
+                >
+                <button type="submit" class="search-btn" style="background: linear-gradient(45deg, #667eea, #764ba2); color: white; border: none; border-radius: 25px; padding: 12px 25px; cursor: pointer; font-size: 16px; font-weight: bold; transition: all 0.3s; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);">Zoeken</button>
+            </form>
+        </div>
+    </header>
+    <main>
+        <div class="content">
+            <div class="container">
+        <?php
+        
+        $username = "root";
+        $password = "";
+        $conn = new PDO("mysql:host=localhost;dbname=student", $username, $password);
+        
+        $query = trim($_GET['q'] ?? '');
+        $results = [];
+        $total_students = 0;
+
+        if (!empty($query)) {
+            try {
+                $sql = "SELECT * FROM student 
+                        WHERE id LIKE :query 
+                           OR voornaam LIKE :query 
+                           OR achternaam LIKE :query 
+                           OR geslacht LIKE :query 
+                           OR studierichting LIKE :query 
+                           OR klas LIKE :query 
+                           OR email LIKE :query 
+                           OR telefoon LIKE :query 
+                           OR woonplaats LIKE :query 
+                           OR land LIKE :query 
+                           OR CAST(gemiddelde_cijfer AS CHAR) LIKE :query 
+                        ORDER BY voornaam, achternaam";
+                
+                $student = $conn->prepare($sql);
+                $student->execute([':query' => "%$query%"]);
+                $results = $student->fetchAll();
+                
+                // Totaal aantal studenten ophalen
+                $total = $conn->query("SELECT COUNT(*) FROM student")->fetchColumn();
+                $total_students = $total;
+            } catch (Exception $e) {
+                // Fout bij zoeken, toon alle studenten
+                $student = $conn->prepare("SELECT * FROM student ORDER BY voornaam, achternaam");
+                $student->execute();
+                $results = $student->fetchAll();
+                $total_students = count($results);
+                // Optioneel: foutmelding tonen
+                // echo "Zoekfout: " . $e->getMessage();
+            }
+        } else {
+            // Toon alle studenten als er niet gezocht wordt
+            $student = $conn->prepare("SELECT * FROM student ORDER BY voornaam, achternaam");
+            $student->execute();
+            $results = $student->fetchAll();
+            
+            $total_students = count($results);
+        }
+        ?>
+
+        <!-- RESULTATEN -->
+        <?php if (!empty($results)): ?>
+        <ul class="results" style="list-style: none; padding: 0;">
+            <li class="results-header" style="padding: 25px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; font-size: 22px; font-weight: bold; text-align: center;">
+                <?php if (!empty($query)): ?>
+                    <?php echo count($results); ?> student<?php echo count($results) > 1 ? 'en' : ''; ?> gevonden voor 
+                    "<strong><?php echo htmlspecialchars($query); ?></strong>"
+                <?php else: ?>
+                    Alle <?php echo $total_students; ?> studenten register
+                <?php endif; ?>
+            </li>
+            
+            <?php foreach ($results as $student): ?>
+            <li class="student-item" data-id="<?php echo $student['id']; ?>">
+                <div class="student-avatar">
+                    <?php echo strtoupper(substr($student['voornaam'] ?? '', 0, 1) . 
+                                 substr($student['achternaam'] ?? '', 0, 1)); ?>
+                </div>
+                <div class="student-info">
+                    <h3><?php echo htmlspecialchars($student['voornaam'] ?? ''); ?> 
+                        <?php echo htmlspecialchars($student['achternaam'] ?? ''); ?></h3>
+                    <p>
+                        <?php if (isset($student['id'])): ?>
+                            ID: <?php echo htmlspecialchars($student['id']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['klas'])): ?>
+                            Klas: <?php echo htmlspecialchars($student['klas']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['geslacht'])): ?>
+                            Geslacht: <?php echo htmlspecialchars($student['geslacht']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['studierichting'])): ?>
+                            Studierichting: <?php echo htmlspecialchars($student['studierichting']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['email'])): ?>
+                            Email: <?php echo htmlspecialchars($student['email']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['telefoon'])): ?>
+                            Telefoon: <?php echo htmlspecialchars($student['telefoon']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['woonplaats'])): ?>
+                            Woonplaats: <?php echo htmlspecialchars($student['woonplaats']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['land'])): ?>
+                            Land: <?php echo htmlspecialchars($student['land']); ?> |
+                        <?php endif; ?>
+                        <?php if (isset($student['gemiddelde_cijfer'])): ?>
+                            Gemiddelde cijfer: <?php echo htmlspecialchars($student['gemiddelde_cijfer']); ?>
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php elseif (!empty($query)): ?>
+        <ul class="results" style="list-style: none; padding: 0;">
+            <li class="no-results" style="padding: 60px 40px; text-align: center; color: #888; font-size: 20px;">
+                😔 Geen studenten gevonden voor "<strong><?php echo htmlspecialchars($query); ?></strong>"
+                <br><br>
+                Probeer een andere zoekterm!
+            </li>
+        </ul>
+        <?php endif; ?>
+        </div>
+    </main>
+    <?php if (!empty($query)): ?>
+    <footer style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6;">
+        <p style="margin: 0; font-size: 16px; color: #6c757d;">Gezocht op: <strong><?php echo htmlspecialchars($query); ?></strong></p>
+    </footer>
+    <?php endif; ?>
+    <script>
+        // Focus op de zoekbalk bij het laden van de pagina
+        document.querySelector('.search-input').focus();
+
+        // Log alle studenten naar console voor backup
+        var students = <?php echo json_encode($results); ?>;
+        console.log('Studenten data:', students);
+
+        // Context menu voor student items
+        document.addEventListener('contextmenu', function(e) {
+            if (e.target.closest('.student-item')) {
+                e.preventDefault();
+                const item = e.target.closest('.student-item');
+                const id = item.dataset.id;
+                showContextMenu(e.clientX, e.clientY, id);
+            }
+        });
+
+        function showContextMenu(x, y, id) {
+            const menu = document.createElement('div');
+            menu.style.position = 'absolute';
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.background = 'white';
+            menu.style.border = '1px solid #ccc';
+            menu.style.padding = '10px';
+            menu.style.zIndex = '1000';
+            menu.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+            menu.innerHTML = `
+                <div onclick="editStudent(${id})" style="cursor: pointer; padding: 5px; hover: background: #f0f0f0;">Aanpassen</div>
+                <div onclick="deleteStudent(${id})" style="cursor: pointer; padding: 5px; color: red;">Verwijderen</div>
+            `;
+            document.body.appendChild(menu);
+            document.addEventListener('click', function removeMenu() {
+                if (document.body.contains(menu)) {
+                    document.body.removeChild(menu);
+                }
+                document.removeEventListener('click', removeMenu);
+            });
+        }
+
+        function editStudent(id) {
+            window.location.href = 'adddnew.php?edit=' + id;
+        }
+
+        function deleteStudent(id) {
+            if (confirm('Weet je zeker dat je deze student wilt verwijderen?')) {
+                window.location.href = 'adddnew.php?delete=' + id;
+            }
+        }
+    </script>
+</body>
+</html>
