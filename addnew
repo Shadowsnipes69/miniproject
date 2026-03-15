@@ -1,0 +1,154 @@
+<?php
+// Database connectie (pas aan naar jouw instellingen)
+$host = "localhost";
+$user = "root";
+$pass = "";
+$db = "student";
+$conn = new mysqli($host, $user, $pass, $db);
+
+if ($conn->connect_error) {
+    die("Connectie mislukt: " . $conn->connect_error);
+}
+
+// Maak de tabel aan als deze niet bestaat
+$table_sql = "CREATE TABLE IF NOT EXISTS student (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    voornaam VARCHAR(255) NOT NULL,
+    achternaam VARCHAR(255) NOT NULL,
+    geslacht VARCHAR(10) NOT NULL,
+    studierichting VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    telefoon VARCHAR(255),
+    woonplaats VARCHAR(255),
+    land VARCHAR(255),
+    klas VARCHAR(10),
+    gemiddelde_cijfer DECIMAL(5,2)
+)";
+if ($conn->query($table_sql) === FALSE) {
+    die("Fout bij aanmaken tabel: " . $conn->error);
+}
+
+// Zorg dat de kolom 'klas' bestaat (voor bestaande tabellen)
+$klasColumn = $conn->query("SHOW COLUMNS FROM student LIKE 'klas'");
+if ($klasColumn && $klasColumn->num_rows === 0) {
+    $conn->query("ALTER TABLE student ADD COLUMN klas VARCHAR(10)");
+}
+
+// Functie om student toe te voegen of te bewerken
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+    $voornaam = $_POST['voornaam'];
+    $achternaam = $_POST['achternaam'];
+    $geslacht = $_POST['geslacht'];
+    $studierichting = $_POST['studierichting'];
+    $email = $_POST['email'];
+    $telefoon = $_POST['telefoon'];
+    $woonplaats = $_POST['woonplaats'];
+    $land = $_POST['land'];
+    $klas = $_POST['klas'] ?? '';
+    $gemiddelde_cijfer = $_POST['gemiddelde_cijfer'];
+
+    if (isset($_POST['opslaan'])) {
+        if ($id > 0) {
+            // Update student
+            $stmt = $conn->prepare("UPDATE student SET voornaam=?, achternaam=?, geslacht=?, studierichting=?, email=?, telefoon=?, woonplaats=?, land=?, klas=?, gemiddelde_cijfer=? WHERE id=?");
+            $stmt->bind_param("ssssssssdsi", $voornaam, $achternaam, $geslacht, $studierichting, $email, $telefoon, $woonplaats, $land, $klas, $gemiddelde_cijfer, $id);
+            $stmt->execute();
+            $stmt->close();
+        } else {
+            // Voeg toe
+            $stmt = $conn->prepare("INSERT INTO student (voornaam, achternaam, geslacht, studierichting, email, telefoon, woonplaats, land, klas, gemiddelde_cijfer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssssssssd", $voornaam, $achternaam, $geslacht, $studierichting, $email, $telefoon, $woonplaats, $land, $klas, $gemiddelde_cijfer);
+            $stmt->execute();
+            $stmt->close();
+        }
+        header("Location: students.php");
+        exit;
+    } elseif (isset($_POST['discard'])) {
+        header("Location: students.php");
+        exit;
+    }
+}
+
+// Verwijder student
+if (isset($_GET['delete'])) {
+    $id = intval($_GET['delete']);
+    $conn->query("DELETE FROM student WHERE id=$id");
+    header("Location: students.php");
+    exit;
+}
+
+// Haal student info op voor bewerken
+$student = [
+    'id' => '',
+    'voornaam' => '',
+    'achternaam' => '',
+    'geslacht' => '',
+    'studierichting' => '',
+    'email' => '',
+    'telefoon' => '',
+    'woonplaats' => '',
+    'land' => '',
+    'klas' => '',
+    'gemiddelde_cijfer' => ''
+];
+if (isset($_GET['edit'])) {
+    $id = intval($_GET['edit']);
+    $result = $conn->query("SELECT * FROM student WHERE id=$id");
+    if ($result && $result->num_rows > 0) {
+        $student = $result->fetch_assoc();
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Toevoegen/Bewerken</title>
+    <link rel="stylesheet" href="djc.css">
+</head>
+<body>
+    <header style="background-color: #186cc1; padding: 20px; display: flex; align-items: center; justify-content: space-between; color: white;">
+        <div>
+            <button onclick="window.location.href='students.php'" style="background-color: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Terug naar Studenten</button>
+        </div>
+    </header>
+    <main>
+        <div class="content">
+            <div class="container" style="max-width: 800px; margin: 20px auto; padding: 20px; background: #f9f9f9; border-radius: 10px;">
+                <h1 style="text-align: center; color: #186cc1;"><?php echo isset($_GET['edit']) ? 'Student Bewerken' : 'Nieuwe Student Toevoegen'; ?></h1>
+                <form method="post" style="display: flex; flex-direction: column; gap: 15px;">
+                    <input type="hidden" name="id" value="<?php echo htmlspecialchars($student['id']); ?>">
+                    <label style="font-weight: bold;">Voornaam: <input type="text" name="voornaam" value="<?php echo htmlspecialchars($student['voornaam']); ?>" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Achternaam: <input type="text" name="achternaam" value="<?php echo htmlspecialchars($student['achternaam']); ?>" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Geslacht:
+                        <select name="geslacht" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                            <option value="m" <?php if($student['geslacht']=='m') echo 'selected'; ?>>Man</option>
+                            <option value="v" <?php if($student['geslacht']=='v') echo 'selected'; ?>>Vrouw</option>
+                        </select>
+                    </label>
+                    <label style="font-weight: bold;">Studierichting: <input type="text" name="studierichting" value="<?php echo htmlspecialchars($student['studierichting']); ?>" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Email: <input type="email" name="email" value="<?php echo htmlspecialchars($student['email']); ?>" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Telefoonnummer: <input type="text" name="telefoon" value="<?php echo htmlspecialchars($student['telefoon']); ?>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Woonplaats: <input type="text" name="woonplaats" value="<?php echo htmlspecialchars($student['woonplaats']); ?>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Land: <input type="text" name="land" value="<?php echo htmlspecialchars($student['land']); ?>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <label style="font-weight: bold;">Klas:
+                        <select name="klas" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                            <?php foreach (['1a','1b','1c','2a','2b','2c','3a','3b','3c'] as $opt): ?>
+                                <option value="<?php echo $opt; ?>" <?php echo ($student['klas'] === $opt) ? 'selected' : ''; ?>><?php echo $opt; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label style="font-weight: bold;">Gemiddelde cijfer: <input type="number" step="0.01" name="gemiddelde_cijfer" value="<?php echo htmlspecialchars($student['gemiddelde_cijfer']); ?>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"></label>
+                    <div style="display: flex; gap: 10px; justify-content: center;">
+                        <button type="submit" name="opslaan" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px;">Opslaan</button>
+                        <button type="submit" name="discard" style="background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 16px;">Discard</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
